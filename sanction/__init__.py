@@ -4,28 +4,27 @@ from functools import wraps
 from json import loads
 from datetime import datetime, timedelta
 from time import mktime
-try:
-    from urllib import urlencode
-    from urllib2 import Request, urlopen
-    from urlparse import urlsplit, urlunsplit, parse_qsl
 
-    # monkeypatch httpmessage
-    from httplib import HTTPMessage
-    def get_charset(self):
-        try:
-            data = filter(lambda s: 'Content-Type' in s, self.headers)[0]
-            if 'charset' in data:
-                cs = data[data.index(';') + 1:-2].split('=')[1].lower()
-                return cs
-        except IndexError:
-            pass
+from urllib import urlencode
+from urllib2 import Request, urlopen
+from urllib2 import HTTPSHandler, HTTPPasswordMgrWithDefaultRealm, HTTPBasicAuthHandler, build_opener, install_opener
+import urllib2
+import base64
+from urlparse import urlsplit, urlunsplit, parse_qsl
 
-        return 'utf-8'
-    HTTPMessage.get_content_charset = get_charset 
-except ImportError: # pragma: no cover
-    from urllib.parse import urlencode, urlsplit, urlunsplit, parse_qsl
-    from urllib.request import Request, urlopen
+# monkeypatch httpmessage
+from httplib import HTTPMessage
+def get_charset(self):
+    try:
+        data = filter(lambda s: 'Content-Type' in s, self.headers)[0]
+        if 'charset' in data:
+            cs = data[data.index(';') + 1:-2].split('=')[1].lower()
+            return cs
+    except IndexError:
+        pass
 
+    return 'utf-8'
+HTTPMessage.get_content_charset = get_charset
 
 class Client(object):
     """ OAuth 2.0 client object
@@ -60,7 +59,20 @@ class Client(object):
         self.token_expires = -1
         self.refresh_token = None
 
-    def auth_uri(self, redirect_uri=None, scope=None, scope_delim=None, 
+        # # Setup Basic Auth for all requests
+        # passman = HTTPPasswordMgrWithDefaultRealm()
+        # passman.add_password(None, None, self.client_id, self.client_secret)
+        #
+        # auth_handler = HTTPBasicAuthHandler(passman)
+        # opener = build_opener(auth_handler)
+        # install_opener(opener)
+
+        # urllib2 debugging
+        handler = HTTPSHandler(debuglevel=1)
+        opener = build_opener(handler)
+        install_opener(opener)
+
+    def auth_uri(self, redirect_uri=None, scope=None, scope_delim=None,
         state=None, **kwargs):
 
         """  Builds the auth URI for the authorization endpoint
@@ -126,8 +138,14 @@ class Client(object):
         if redirect_uri is not None:
             kwargs.update({'redirect_uri': redirect_uri})
 
+        # print self.token_endpoint
+        # print kwargs
+
+        req = Request(self.token_endpoint)
+        self.add_lyft_auth(req)
+
         # TODO: maybe raise an exception here if status code isn't 200?
-        msg = urlopen(self.token_endpoint, urlencode(kwargs).encode(
+        msg = urlopen(req, urlencode(kwargs).encode(
             'utf-8'))
         data = parser(msg.read().decode(msg.info().get_content_charset() or
             'utf-8'))
@@ -182,6 +200,12 @@ class Client(object):
             # their responses, so this allows the client code to handle it
             # directly.
             return parser(data)
+
+    def add_lyft_auth(self, req):
+        base64string = base64.encodestring(
+            '%s:%s' % (self.client_id, self.client_secret))[:-1]
+        authheader = "Basic %s" % base64string
+        req.add_header("Authorization", authheader)
 
 
 def transport_headers(url, access_token, data=None, method=None, headers=None):
