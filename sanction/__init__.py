@@ -7,7 +7,7 @@ from time import mktime
 
 from urllib import urlencode
 from urllib2 import Request, urlopen
-from urllib2 import HTTPSHandler, HTTPPasswordMgrWithDefaultRealm, HTTPBasicAuthHandler, build_opener, install_opener
+from urllib2 import HTTPSHandler, build_opener, install_opener
 import urllib2
 import base64
 from urlparse import urlsplit, urlunsplit, parse_qsl
@@ -59,18 +59,10 @@ class Client(object):
         self.token_expires = -1
         self.refresh_token = None
 
-        # # Setup Basic Auth for all requests
-        # passman = HTTPPasswordMgrWithDefaultRealm()
-        # passman.add_password(None, None, self.client_id, self.client_secret)
-        #
-        # auth_handler = HTTPBasicAuthHandler(passman)
-        # opener = build_opener(auth_handler)
+        # # urllib2 debugging
+        # handler = HTTPSHandler(debuglevel=1)
+        # opener = build_opener(handler)
         # install_opener(opener)
-
-        # urllib2 debugging
-        handler = HTTPSHandler(debuglevel=1)
-        opener = build_opener(handler)
-        install_opener(opener)
 
     def auth_uri(self, redirect_uri=None, scope=None, scope_delim=None,
         state=None, **kwargs):
